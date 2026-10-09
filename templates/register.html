@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register · QEAP-256 Quantum Auth</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060810;--bg2:#0c1020;--bg3:#111827;
+  --border:#1e2d4a;--border2:#2a3f5f;
+  --cyan:#00e5ff;--violet:#7c3aed;--violet2:#a855f7;
+  --green:#10ffb0;--red:#ff4d6d;--amber:#fbbf24;
+  --text:#e2e8f0;--text-dim:#64748b;--text-mid:#94a3b8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;
+  min-height:100vh;display:flex;align-items:flex-start;justify-content:center;
+  padding:40px 16px 60px;overflow-x:hidden;}
+.orb{position:fixed;border-radius:50%;pointer-events:none;filter:blur(90px);opacity:.1;z-index:0;}
+.o1{width:500px;height:500px;background:var(--violet);top:-150px;left:-150px;}
+.o2{width:400px;height:400px;background:var(--cyan);bottom:-100px;right:-100px;}
+body::after{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+  pointer-events:none;z-index:1000;}
+
+.wrap{position:relative;z-index:1;width:100%;max-width:860px;display:grid;
+  grid-template-columns:1fr 1fr;gap:24px;align-items:start;}
+@media(max-width:680px){.wrap{grid-template-columns:1fr;}}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px;
+  position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--cyan),var(--violet2));border-radius:20px 20px 0 0;}
+
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+.logo-icon{width:36px;height:36px;border-radius:9px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  display:flex;align-items:center;justify-content:center;font-size:1rem;}
+.logo-text{font-size:1rem;font-weight:800;}
+.logo-text span{color:var(--cyan);}
+h1{font-size:1.5rem;font-weight:800;margin-bottom:4px;}
+.subtitle{color:var(--text-mid);font-size:.8rem;font-family:'Space Mono',monospace;margin-bottom:24px;}
+
+.engine-tag{display:inline-flex;align-items:center;gap:6px;
+  font-family:'Space Mono',monospace;font-size:.65rem;color:var(--cyan);
+  background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);
+  border-radius:999px;padding:3px 10px;margin-bottom:20px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.field{margin-bottom:16px;}
+label{display:block;font-size:.72rem;font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:5px;}
+input{width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:10px 13px;border-radius:9px;
+  font-family:'Syne',sans-serif;font-size:.88rem;outline:none;transition:.2s;}
+input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.1);}
+input.error{border-color:var(--red);}
+.err-msg{font-size:.7rem;font-family:'Space Mono',monospace;color:var(--red);margin-top:3px;}
+
+.strength{height:3px;border-radius:2px;background:var(--border);margin-top:6px;overflow:hidden;}
+.strength-bar{height:100%;border-radius:2px;transition:.3s;width:0%;}
+
+.btn{width:100%;padding:12px;border:none;border-radius:9px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  color:#000;font-family:'Space Mono',monospace;font-size:.82rem;font-weight:700;
+  letter-spacing:.05em;cursor:pointer;transition:.2s;margin-top:6px;
+  display:flex;align-items:center;justify-content:center;gap:10px;}
+.btn:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,229,255,.25);}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.spinner{width:15px;height:15px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;
+  border-radius:50%;animation:spin .7s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading .spinner{display:block;}
+.loading .btn-text{display:none;}
+
+.alert{padding:10px 14px;border-radius:8px;font-family:'Space Mono',monospace;font-size:.75rem;margin-top:12px;}
+.alert.success{background:rgba(16,255,176,.08);border:1px solid rgba(16,255,176,.25);color:var(--green);}
+.alert.error{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.25);color:var(--red);}
+
+.link-row{text-align:center;font-size:.8rem;color:var(--text-mid);margin-top:16px;}
+.link-row a{color:var(--cyan);text-decoration:none;font-weight:600;}
+
+/* Right panel — quantum identity preview */
+.qid-panel h2{font-size:1rem;font-weight:700;margin-bottom:6px;}
+.qid-panel .desc{font-size:.78rem;color:var(--text-mid);font-family:'Space Mono',monospace;margin-bottom:20px;line-height:1.6;}
+
+.algo-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;
+  background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);
+  border-radius:999px;font-family:'Space Mono',monospace;font-size:.75rem;
+  color:var(--cyan);margin-bottom:20px;}
+
+.metric-row{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;}
+.metric{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.metric-label{font-family:'Space Mono',monospace;font-size:.65rem;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text-dim);margin-bottom:4px;}
+.metric-val{font-size:1.1rem;font-weight:700;font-family:'Space Mono',monospace;color:var(--cyan);
+  word-break:break-all;letter-spacing:.04em;}
+.metric-val.pending{color:var(--text-dim);font-size:.85rem;}
+.metric-val.green{color:var(--green);}
+.metric-val.violet{color:var(--violet2);}
+.metric-val.amber{color:var(--amber);}
+
+/* Bell pair animation */
+.bell-pairs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:16px;}
+.bp{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  font-family:'Space Mono',monospace;font-size:.65rem;color:var(--text-dim);
+  transition:all .4s;position:relative;}
+.bp.active{border-color:var(--cyan);background:rgba(0,229,255,.12);color:var(--cyan);}
+.bp.done-0{border-color:var(--cyan);background:rgba(0,229,255,.15);color:var(--cyan);}
+.bp.done-1{border-color:var(--violet2);background:rgba(168,85,247,.15);color:var(--violet2);}
+
+.steps-list{margin-bottom:16px;}
+.reg-step{display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid rgba(30,45,74,.4);font-size:.78rem;}
+.reg-step:last-child{border-bottom:none;}
+.reg-step-icon{width:20px;text-align:center;flex-shrink:0;}
+.reg-step-text{color:var(--text-mid);font-family:'Space Mono',monospace;font-size:.7rem;}
+.reg-step.done .reg-step-text{color:var(--text);}
+.reg-step.active .reg-step-text{color:var(--cyan);}
+</style>
+</head>
+<body>
+<div class="orb o1"></div><div class="orb o2"></div>
+
+<div class="wrap">
+
+  <!-- LEFT: Form -->
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <div class="logo-text"><span>QEAP</span>-256</div>
+    </div>
+    <div class="engine-tag"><span class="dot"></span>{{ 'Qiskit Backend' if qiskit else 'NumPy Quantum Sim' }}</div>
+    <h1>Create Identity</h1>
+    <p class="subtitle">Register with a quantum-secured account using Bell-pair entanglement</p>
+
+    <div class="field">
+      <label>Full Name</label>
+      <input type="text" id="full_name" placeholder="Alice Quantum" autocomplete="name">
+      <div class="err-msg" id="err-full_name"></div>
+    </div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="alicequantum" autocomplete="username">
+      <div class="err-msg" id="err-username"></div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="alice@example.com" autocomplete="email">
+      <div class="err-msg" id="err-email"></div>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" oninput="checkStrength(this.value)">
+      <div class="strength"><div class="strength-bar" id="strength-bar"></div></div>
+      <div class="err-msg" id="err-password"></div>
+    </div>
+
+    <button class="btn" id="reg-btn" onclick="doRegister()">
+      <span class="btn-text">⬡ Generate Quantum Identity</span>
+      <span class="spinner"></span>
+    </button>
+
+    <div class="alert" id="alert" style="display:none"></div>
+
+    <div class="link-row">
+      Already registered? <a href="/login">Sign in →</a>
+    </div>
+    <div class="link-row" style="margin-top:8px;"><a href="/">← Back to dashboard</a></div>
+  </div>
+
+  <!-- RIGHT: Quantum identity preview -->
+  <div class="card qid-panel">
+    <h2>⬡ QEAP-256 Identity</h2>
+    <p class="desc">
+      Your identity is secured by <strong style="color:var(--cyan)">8 entangled Bell pairs</strong>
+      measured in randomised bases. The resulting
+      <strong style="color:var(--cyan)">Quantum Identity Vector (QIV)</strong>
+      and CHSH score are stored alongside your credentials.
+    </p>
+    <div class="algo-badge">◈ QEAP-256 · Quantum Entanglement Auth Protocol</div>
+
+    <!-- Bell pair visualiser -->
+    <div class="metric-label" style="margin-bottom:8px;">Bell Pair States (8 pairs → 16 qubits)</div>
+    <div class="bell-pairs" id="bell-pairs">
+      <!-- 16 qubits rendered by JS -->
+    </div>
+
+    <div class="metric-row">
+      <div class="metric">
+        <div class="metric-label">Quantum Identity Vector (QIV)</div>
+        <div class="metric-val pending" id="qiv-val">Awaiting generation…</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">CHSH Fingerprint (S)</div>
+        <div class="metric-val green pending" id="chsh-val">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Bell Pair Fidelity</div>
+        <div class="metric-val violet pending" id="fid-val">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Elapsed (ms)</div>
+        <div class="metric-val amber pending" id="time-val">—</div>
+      </div>
+    </div>
+
+    <!-- Registration steps -->
+    <div class="metric-label" style="margin-bottom:10px;">Protocol Steps</div>
+    <div class="steps-list" id="steps-list">
+      <div class="reg-step" id="rs1"><span class="reg-step-icon">○</span><span class="reg-step-text">1. Validate credentials</span></div>
+      <div class="reg-step" id="rs2"><span class="reg-step-icon">○</span><span class="reg-step-text">2. HMAC-SHA256 seed derivation</span></div>
+      <div class="reg-step" id="rs3"><span class="reg-step-icon">○</span><span class="reg-step-text">3. Prepare 8 Bell pairs (|Φ+⟩)</span></div>
+      <div class="reg-step" id="rs4"><span class="reg-step-icon">○</span><span class="reg-step-text">4. Measure qubits, extract QIV</span></div>
+      <div class="reg-step" id="rs5"><span class="reg-step-icon">○</span><span class="reg-step-text">5. Compute CHSH fingerprint</span></div>
+      <div class="reg-step" id="rs6"><span class="reg-step-icon">○</span><span class="reg-step-text">6. Store identity in MongoDB</span></div>
+      <div class="reg-step" id="rs7"><span class="reg-step-icon">○</span><span class="reg-step-text">7. Issue JWT token</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Init bell pairs display
+const bpContainer = document.getElementById('bell-pairs');
+for(let i=0;i<16;i++){
+  const d = document.createElement('div');
+  d.className='bp'; d.id='bp'+i; d.textContent=i%2===0?'A':'B';
+  bpContainer.appendChild(d);
+}
+
+function checkStrength(v){
+  let s=0;
+  if(v.length>=6)s++;if(v.length>=10)s++;
+  if(/[A-Z]/.test(v))s++;if(/[0-9]/.test(v))s++;if(/[^a-zA-Z0-9]/.test(v))s++;
+  const bar=document.getElementById('strength-bar');
+  const colors=['#ff4d6d','#ff4d6d','#fbbf24','#10ffb0','#10ffb0'];
+  bar.style.width=(s/5*100)+'%';
+  bar.style.background=colors[Math.min(s,4)];
+}
+
+function setStep(n,state){ // state: 'active'|'done'|''
+  const el=document.getElementById('rs'+n);
+  el.className='reg-step '+(state||'');
+  const icons={'active':'◌','done':'✓',''  :'○'};
+  el.querySelector('.reg-step-icon').textContent=icons[state]||'○';
+}
+
+function animateBellPairs(qiv_hex){
+  // animate 16 qubits lighting up
+  const bits=parseInt(qiv_hex,16).toString(2).padStart(16,'0');
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i>=16){clearInterval(iv);return;}
+    const el=document.getElementById('bp'+i);
+    el.className='bp done-'+bits[i];
+    el.textContent=bits[i];
+    i++;
+  },80);
+}
+
+const btn=document.getElementById('reg-btn');
+const alertEl=document.getElementById('alert');
+
+function showAlert(msg,type){alertEl.className='alert '+type;alertEl.textContent=msg;alertEl.style.display='block';}
+function clearErrors(){
+  ['full_name','username','email','password'].forEach(f=>{
+    document.getElementById(f).classList.remove('error');
+    document.getElementById('err-'+f).textContent='';
+  });
+  alertEl.style.display='none';
+}
+function setLoading(v){btn.disabled=v;v?btn.classList.add('loading'):btn.classList.remove('loading');}
+
+async function doRegister(){
+  clearErrors();
+  const full_name=document.getElementById('full_name').value.trim();
+  const username =document.getElementById('username').value.trim();
+  const email    =document.getElementById('email').value.trim();
+  const password =document.getElementById('password').value.trim();
+
+  setLoading(true);
+  setStep(1,'active');
+
+  try{
+    const res=await fetch('/api/auth/register',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({full_name,username,email,password})
+    });
+    const data=await res.json();
+
+    if(!data.ok){
+      setStep(1,'');
+      if(data.errors){
+        Object.entries(data.errors).forEach(([k,v])=>{
+          const el=document.getElementById(k);
+          if(el){el.classList.add('error');}
+          const em=document.getElementById('err-'+k);
+          if(em) em.textContent=v;
+        });
+        showAlert('Please fix the errors above','error');
+      } else {
+        showAlert(data.error||'Registration failed','error');
+      }
+      return;
+    }
+
+    // Animate the protocol steps
+    const q=data.quantum;
+    const steps=[
+      ()=>{setStep(1,'done');setStep(2,'active');},
+      ()=>{setStep(2,'done');setStep(3,'active');},
+      ()=>{
+        setStep(3,'done');setStep(4,'active');
+        animateBellPairs(q.qiv_hex);
+        document.getElementById('qiv-val').textContent=q.qiv_hex;
+        document.getElementById('qiv-val').classList.remove('pending');
+      },
+      ()=>{
+        setStep(4,'done');setStep(5,'active');
+        document.getElementById('chsh-val').textContent='S = '+q.chsh_fingerprint;
+        document.getElementById('chsh-val').classList.remove('pending');
+        document.getElementById('fid-val').textContent=(q.fidelity*100).toFixed(1)+'%';
+        document.getElementById('fid-val').classList.remove('pending');
+      },
+      ()=>{setStep(5,'done');setStep(6,'active');},
+      ()=>{
+        setStep(6,'done');setStep(7,'active');
+        document.getElementById('time-val').textContent=q.elapsed_ms+'ms';
+        document.getElementById('time-val').classList.remove('pending');
+      },
+      ()=>{setStep(7,'done');},
+    ];
+    let i=0;
+    const iv=setInterval(()=>{
+      if(i<steps.length){steps[i]();i++;}else{
+        clearInterval(iv);
+        localStorage.setItem('qeap_token',data.token);
+        localStorage.setItem('qeap_user',JSON.stringify(data.user));
+        showAlert('✓ Quantum identity created! Redirecting…','success');
+        setTimeout(()=>window.location.href='/dashboard',1500);
+      }
+    },350);
+
+  }catch(e){
+    showAlert('Network error — is the server running?','error');
+    setStep(1,'');
+  }finally{
+    setLoading(false);
+  }
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Enter')doRegister();});
+const tok=localStorage.getItem('qeap_token');
+if(tok) window.location.href='/dashboard';
+</script>
+</body>
+</html>
