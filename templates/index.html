@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Auth Research Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #060810;
+    --bg2:       #0c1020;
+    --bg3:       #111827;
+    --border:    #1e2d4a;
+    --border2:   #2a3f5f;
+    --cyan:      #00e5ff;
+    --cyan-dim:  #00b8cc;
+    --violet:    #7c3aed;
+    --violet2:   #a855f7;
+    --green:     #10ffb0;
+    --red:       #ff4d6d;
+    --amber:     #fbbf24;
+    --text:      #e2e8f0;
+    --text-dim:  #64748b;
+    --text-mid:  #94a3b8;
+    --glow-c:    0 0 20px rgba(0,229,255,.25);
+    --glow-v:    0 0 20px rgba(124,58,237,.35);
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Starfield bg ── */
+  body::before {
+    content:'';
+    position:fixed;inset:0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(0,229,255,.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(168,85,247,.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 70%, rgba(0,229,255,.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(168,85,247,.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 60%, rgba(16,255,176,.2) 0%, transparent 100%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ── Glowing orbs ── */
+  .orb {
+    position:fixed;border-radius:50%;pointer-events:none;filter:blur(80px);opacity:.12;z-index:0;
+  }
+  .orb-1{width:400px;height:400px;background:var(--violet);top:-100px;left:-100px;}
+  .orb-2{width:350px;height:350px;background:var(--cyan);bottom:-80px;right:-80px;}
+  .orb-3{width:250px;height:250px;background:var(--green);top:50%;left:50%;transform:translate(-50%,-50%);}
+
+  /* ── Scanline effect ── */
+  body::after {
+    content:'';position:fixed;inset:0;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+    pointer-events:none;z-index:1000;
+  }
+
+  /* ── Layout ── */
+  .wrapper{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:0 24px 60px;}
+
+  /* ── Header ── */
+  header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .header-left h1 {
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+  }
+  .header-left h1 span.cyan { color: var(--cyan); }
+  .header-left h1 span.violet { color: var(--violet2); }
+  .header-left p {
+    margin-top: 6px;
+    color: var(--text-mid);
+    font-size: .9rem;
+    font-family: 'Space Mono', monospace;
+  }
+  .engine-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-family: 'Space Mono', monospace;
+    font-size: .72rem;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .engine-badge.qiskit  { border-color: var(--green); color: var(--green); background: rgba(16,255,176,.07); }
+  .engine-badge.numpy   { border-color: var(--cyan);  color: var(--cyan);  background: rgba(0,229,255,.07);  }
+  .engine-badge .dot    { width:7px;height:7px;border-radius:50%;background:currentColor;
+                          animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── Paper nav tabs ── */
+  .paper-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .ptab {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text-mid);
+    cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    font-size: .75rem;
+    transition: all .2s;
+    white-space: nowrap;
+  }
+  .ptab:hover { border-color: var(--border2); color: var(--text); }
+  .ptab.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0,229,255,.08); }
+
+  /* ── Panels ── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Section title ── */
+  .sec-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 6px;
+  }
+  .sec-subtitle {
+    color: var(--text-mid);
+    font-size: .85rem;
+    margin-bottom: 24px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--border2); }
+  .card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg, var(--cyan), var(--violet2));
+    opacity:.5;
+  }
+  .card-title {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 6px;
+  }
+  .card-value {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .card-value.cyan   { color: var(--cyan);   text-shadow: var(--glow-c); }
+  .card-value.green  { color: var(--green);  text-shadow: 0 0 20px rgba(16,255,176,.3); }
+  .card-value.violet { color: var(--violet2);text-shadow: var(--glow-v); }
+  .card-value.amber  { color: var(--amber);  text-shadow: 0 0 20px rgba(251,191,36,.3); }
+  .card-sub { font-size: .78rem; color: var(--text-mid); margin-top: 4px; }
+
+  /* ── Grid layouts ── */
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px; }
+  @media(max-width:640px){ .grid-2{grid-template-columns:1fr;} }
+
+  /* ── Chart containers ── */
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+  .chart-card h3 {
+    font-size: .85rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-mid);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 16px;
+  }
+  .chart-wrap { position: relative; }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-group label {
+    font-family: 'Space Mono', monospace;
+    font-size: .7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .ctrl-group input[type=range] { width: 140px; accent-color: var(--cyan); }
+  .ctrl-group input[type=number] {
+    width: 80px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: .8rem;
+  }
+  .ctrl-group select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: .8rem;
+    cursor: pointer;
+  }
+  .ctrl-group .range-val {
+    font-family: 'Space Mono', monospace;
+    font-size: .75rem;
+    color: var(--cyan);
+  }
+  .toggle-row { display: flex; align-items: center; gap: 8px; }
+  .toggle { position:relative;width:38px;height:20px; }
+  .toggle input { opacity:0;width:0;height:0; }
+  .toggle-slider {
+    position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);
+    border-radius:20px;cursor:pointer;transition:.2s;
+  }
+  .toggle-slider::before {
+    content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;
+    background:var(--text-dim);border-radius:50%;transition:.2s;
+  }
+  .toggle input:checked + .toggle-slider { background:rgba(0,229,255,.15);border-color:var(--cyan); }
+  .toggle input:checked + .toggle-slider::before { transform:translateX(18px);background:var(--cyan); }
+
+  /* ── Run button ── */
+  .btn-run {
+    padding: 10px 24px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: .8rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .05em;
+    transition: all .2s;
+    white-space: nowrap;
+  }
+  .btn-run:hover { opacity:.85; transform:translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,.3); }
+  .btn-run:active { transform:translateY(0); }
+  .btn-run:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+
+  /* ── Loading spinner ── */
+  .spinner {
+    display: none;
+    width: 18px;height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading .spinner{display:inline-block;}
+  .loading .btn-text{display:none;}
+
+  /* ── Trace table ── */
+  .trace-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Space Mono', monospace;
+    font-size: .72rem;
+    margin-top: 8px;
+  }
+  .trace-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .65rem;
+  }
+  .trace-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(30,45,74,.5);
+    color: var(--text-mid);
+  }
+  .trace-table tr:hover td { background: rgba(0,229,255,.03); }
+  .bit-0 { color: var(--cyan); }
+  .bit-1 { color: var(--violet2); }
+  .basis-z { color: var(--green); }
+  .basis-x { color: var(--amber); }
+  .match-yes { color: var(--green); }
+  .match-no { color: var(--red); }
+  .eve-yes { color: var(--red); font-weight: 700; }
+
+  /* ── Key display ── */
+  .key-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 10px;
+    font-family: 'Space Mono', monospace;
+  }
+  .key-bit {
+    width: 24px;height: 24px;
+    display: flex;align-items:center;justify-content:center;
+    border-radius: 4px;
+    font-size: .7rem;
+    font-weight: 700;
+  }
+  .key-bit.b0 { background: rgba(0,229,255,.15); color: var(--cyan); }
+  .key-bit.b1 { background: rgba(124,58,237,.2); color: var(--violet2); }
+
+  /* ── Info box ── */
+  .info-box {
+    background: rgba(0,229,255,.05);
+    border: 1px solid rgba(0,229,255,.15);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: .82rem;
+    color: var(--text-mid);
+    line-height: 1.6;
+    font-family: 'Space Mono', monospace;
+  }
+  .info-box strong { color: var(--cyan); }
+
+  /* ── Alert/warning ── */
+  .alert-box {
+    background: rgba(255,77,109,.07);
+    border: 1px solid rgba(255,77,109,.3);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: .78rem;
+    color: var(--red);
+  }
+  .success-box {
+    background: rgba(16,255,176,.07);
+    border: 1px solid rgba(16,255,176,.25);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: .78rem;
+    color: var(--green);
+  }
+
+  /* ── Overview panel ── */
+  .papers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin-bottom: 28px; }
+  .paper-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    cursor: pointer;
+    transition: all .25s;
+  }
+  .paper-card:hover { border-color: var(--cyan); box-shadow: var(--glow-c); transform: translateY(-2px); }
+  .paper-card .pnum { font-size: .7rem; font-family: 'Space Mono', monospace; color: var(--cyan); letter-spacing: .1em; margin-bottom: 8px; }
+  .paper-card .ptitle { font-size: 1rem; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
+  .paper-card .pjournal { font-size: .75rem; font-family: 'Space Mono', monospace; color: var(--text-dim); margin-bottom: 12px; }
+  .paper-card .ptags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { padding: 3px 9px; border-radius: 999px; font-size: .65rem; font-family: 'Space Mono', monospace; border: 1px solid; }
+  .tag.cyan   { border-color: var(--cyan);   color: var(--cyan); }
+  .tag.violet { border-color: var(--violet2);color: var(--violet2); }
+  .tag.green  { border-color: var(--green);  color: var(--green); }
+  .tag.amber  { border-color: var(--amber);  color: var(--amber); }
+
+  /* ── Compare panel ── */
+  .compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .legend-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: .72rem; color: var(--text-mid); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    font-size: .72rem;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  footer a { color: var(--cyan); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="wrapper">
+
+  <!-- ── AUTH NAV ── -->
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;
+              padding:12px 0;margin-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:0;">
+    <span id="nav-user-chip" style="display:none;align-items:center;gap:8px;padding:5px 12px;
+      background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);border-radius:999px;
+      font-family:Space Mono,monospace;font-size:.7rem;color:var(--cyan);">
+      <span id="nav-uname"></span>
+    </span>
+    <a id="nav-dashboard-btn" href="/dashboard" style="display:none;padding:7px 16px;border-radius:7px;
+      border:1px solid var(--border);color:var(--text-mid);font-family:Space Mono,monospace;
+      font-size:.7rem;text-decoration:none;transition:.2s;" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-mid)'">
+      ◈ My Dashboard
+    </a>
+    <a id="nav-login-btn" href="/login" style="padding:7px 16px;border-radius:7px;
+      border:1px solid var(--border);color:var(--text-mid);font-family:Space Mono,monospace;
+      font-size:.7rem;text-decoration:none;transition:.2s;" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-mid)'">
+      Sign In
+    </a>
+    <a id="nav-register-btn" href="/register" style="padding:7px 16px;border-radius:7px;
+      background:linear-gradient(135deg,var(--cyan),var(--violet));color:#000;
+      font-family:Space Mono,monospace;font-size:.7rem;font-weight:700;text-decoration:none;">
+      ⬡ Register
+    </a>
+    <button id="nav-logout-btn" onclick="navLogout()" style="display:none;padding:7px 16px;
+      border-radius:7px;border:1px solid var(--border);background:transparent;
+      color:var(--text-mid);font-family:Space Mono,monospace;font-size:.7rem;cursor:pointer;">
+      Sign Out
+    </button>
+  </div>
+
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="header-left">
+      <h1>
+        <span class="cyan">Quantum</span>
+        <span class="violet"> Auth</span>
+        Research Dashboard
+      </h1>
+      <p>Furkan Sayyed · Srivaramangai Ramanujam · University of Mumbai</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <span class="engine-badge {% if qiskit %}qiskit{% else %}numpy{% endif %}">
+        <span class="dot"></span>
+        {% if qiskit %}Qiskit Backend{% else %}NumPy Sim Active{% endif %}
+      </span>
+    </div>
+  </header>
+
+  <!-- ── TABS ── -->
+  <div class="paper-tabs">
+    <button class="ptab active" onclick="showPanel('overview')">⬡ Overview</button>
+    <button class="ptab" onclick="showPanel('bell')">◈ Bell Auth · Papers 1&2</button>
+    <button class="ptab" onclick="showPanel('chsh')">◇ CHSH Zero-Trust · Paper 3</button>
+    <button class="ptab" onclick="showPanel('bb84')">◉ BB84 QKD Protocol</button>
+    <button class="ptab" onclick="showPanel('compare')">≡ Scenario Compare</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PANEL 0 — OVERVIEW
+  ═══════════════════════════════════════════ -->
+  <div class="panel active" id="panel-overview">
+
+    <div class="sec-title">Research Overview</div>
+    <div class="sec-subtitle">Three published papers on quantum authentication — click a card to run its simulation</div>
+
+    <div class="papers-grid">
+      <div class="paper-card" onclick="showPanel('bell')">
+        <div class="pnum">PAPER 01 · IJESE APR 2025</div>
+        <div class="ptitle">From Passwords to Qubits: Harnessing Entanglement for Next-Generation Authentication</div>
+        <div class="pjournal">DOI: 10.35940/ijese.D2593.13050425</div>
+        <div class="ptags">
+          <span class="tag cyan">Entanglement</span>
+          <span class="tag violet">QKD</span>
+          <span class="tag green">No-Cloning</span>
+          <span class="tag amber">FIDO2</span>
+        </div>
+      </div>
+      <div class="paper-card" onclick="showPanel('bell')">
+        <div class="pnum">PAPER 02 · IJIRT JAN 2026</div>
+        <div class="ptitle">Entangled Qubits and PQC: A Simulated Performance Analysis for Post-Quantum Authentication</div>
+        <div class="pjournal">IJIRT Vol.12 Issue 8 · ISSN: 2349-6002</div>
+        <div class="ptags">
+          <span class="tag cyan">Bell States</span>
+          <span class="tag violet">PQC</span>
+          <span class="tag green">Qiskit</span>
+          <span class="tag amber">Hybrid</span>
+        </div>
+      </div>
+      <div class="paper-card" onclick="showPanel('chsh')">
+        <div class="pnum">PAPER 03 · IJCA JUN 2025</div>
+        <div class="ptitle">Zero-Trust Quantum Authentication for Distributed Systems Using Device-Independent Protocols</div>
+        <div class="pjournal">IJCA Vol.187 No.20 · ISSN: 0975-8887</div>
+        <div class="ptags">
+          <span class="tag cyan">CHSH</span>
+          <span class="tag violet">Zero-Trust</span>
+          <span class="tag green">DI-QKD</span>
+          <span class="tag amber">IoT</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>How this dashboard works:</strong> Each tab runs a <strong>live quantum simulation</strong>
+      on the backend using {{ 'Qiskit AerSimulator' if qiskit else 'a faithful NumPy quantum simulator' }}.
+      Bell pairs are generated, measured, and analyzed in real-time.
+      Results match the experimental outcomes reported in the papers above.
+      Adjust parameters, toggle eavesdroppers, and observe quantum security in action.
+    </div>
+
+    <div class="grid-4" id="overview-stats">
+      <div class="card">
+        <div class="card-title">Quantum Engine</div>
+        <div class="card-value cyan" style="font-size:1.1rem;">{{ 'Qiskit' if qiskit else 'NumPy' }}</div>
+        <div class="card-sub">{{ 'AerSimulator active' if qiskit else 'Install qiskit for full sim' }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Published Papers</div>
+        <div class="card-value violet">3</div>
+        <div class="card-sub">Peer-reviewed journals</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Simulations Ready</div>
+        <div class="card-value green">4</div>
+        <div class="card-sub">Bell · CHSH · BB84 · Compare</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Classical Limit</div>
+        <div class="card-value amber">S = 2</div>
+        <div class="card-sub">CHSH quantum max: 2√2 ≈ 2.83</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PANEL 1 — BELL AUTH
+  ═══════════════════════════════════════════ -->
+  <div class="panel" id="panel-bell">
+
+    <div class="sec-title">Bell State Authentication</div>
+    <div class="sec-subtitle">Papers 1 & 2 — Entanglement-based identity verification using Bell pairs. Achieves 95–98% accuracy.</div>
+
+    <div class="info-box">
+      <strong>Protocol:</strong> Alice &amp; Bob share entangled Bell pairs |Φ+⟩ = 1/√2(|00⟩+|11⟩).
+      Authentication succeeds when measurement outcomes correlate. An eavesdropper (Eve) collapses the
+      entangled state, reducing fidelity and triggering detection via the no-cloning theorem.
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>Trials</label>
+        <input type="range" id="bell-trials" min="10" max="100" value="40" oninput="document.getElementById('bell-trials-val').textContent=this.value">
+        <span class="range-val" id="bell-trials-val">40</span>
+      </div>
+      <div class="ctrl-group">
+        <label>Eavesdropper (Eve)</label>
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="bell-eve"><span class="toggle-slider"></span></label>
+          <span style="font-family:'Space Mono',monospace;font-size:.75rem;color:var(--text-mid)">Enable</span>
+        </div>
+      </div>
+      <button class="btn-run" id="btn-bell" onclick="runBell()">
+        <span class="btn-text">▶ Run Simulation</span>
+        <span class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="grid-4" id="bell-stats" style="display:none">
+      <div class="card">
+        <div class="card-title">Auth Accuracy</div>
+        <div class="card-value green" id="bell-acc">—</div>
+        <div class="card-sub">Final accuracy</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Avg Fidelity</div>
+        <div class="card-value cyan" id="bell-fid">—</div>
+        <div class="card-sub">Bell state fidelity</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Mode</div>
+        <div class="card-value amber" id="bell-mode">—</div>
+        <div class="card-sub">Channel condition</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Sim Time</div>
+        <div class="card-value violet" id="bell-time">—</div>
+        <div class="card-sub">Backend ms</div>
+      </div>
+    </div>
+
+    <div class="chart-card" id="bell-chart-card" style="display:none">
+      <h3>Authentication Accuracy Over Trials</h3>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="bellAccChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2" id="bell-charts2" style="display:none">
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Fidelity Per Trial</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="bellFidChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Bit Outcomes Distribution</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="bellBitChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PANEL 2 — CHSH
+  ═══════════════════════════════════════════ -->
+  <div class="panel" id="panel-chsh">
+
+    <div class="sec-title">CHSH Zero-Trust Authentication</div>
+    <div class="sec-subtitle">Paper 3 — Device-independent security via Bell inequality violations. S > 2 = authenticated.</div>
+
+    <div class="info-box">
+      <strong>CHSH Inequality:</strong> S = E(a,b) + E(a,b') + E(a',b) − E(a',b').
+      Classical limit: S ≤ 2. Quantum max: S ≤ 2√2 ≈ 2.828.
+      Any violation S &gt; 2 confirms genuine entanglement — no trusted hardware needed.
+      Attacks reduce S below threshold, triggering rejection.
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>Rounds</label>
+        <input type="range" id="chsh-rounds" min="10" max="100" value="50" oninput="document.getElementById('chsh-rounds-val').textContent=this.value">
+        <span class="range-val" id="chsh-rounds-val">50</span>
+      </div>
+      <div class="ctrl-group">
+        <label>Scenario</label>
+        <select id="chsh-scenario">
+          <option value="normal">Normal (No Attack)</option>
+          <option value="eavesdrop">Eavesdropping (Eve)</option>
+          <option value="malicious_device">Malicious Device (Charlie)</option>
+          <option value="high_noise">High Noise / Decoherence</option>
+        </select>
+      </div>
+      <button class="btn-run" id="btn-chsh" onclick="runCHSH()">
+        <span class="btn-text">▶ Run Simulation</span>
+        <span class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="grid-4" id="chsh-stats" style="display:none">
+      <div class="card">
+        <div class="card-title">Avg CHSH Score (S)</div>
+        <div class="card-value cyan" id="chsh-s">—</div>
+        <div class="card-sub">Classical limit = 2.0</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Auth Accuracy</div>
+        <div class="card-value green" id="chsh-acc">—</div>
+        <div class="card-sub">Rounds with S > 2</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Scenario</div>
+        <div class="card-value amber" id="chsh-scen" style="font-size:1rem;">—</div>
+        <div class="card-sub">Current condition</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Security</div>
+        <div class="card-value" id="chsh-sec">—</div>
+        <div class="card-sub">Verdict</div>
+      </div>
+    </div>
+
+    <div class="chart-card" id="chsh-chart-card" style="display:none">
+      <h3>CHSH Score Per Round (Classical Limit = 2.0, Quantum Max ≈ 2.83)</h3>
+      <div class="chart-wrap" style="height:270px">
+        <canvas id="chshMainChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2" id="chsh-charts2" style="display:none">
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Score Distribution Histogram</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chshHistChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Auth Success Rate Over Rounds</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chshAuthChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PANEL 3 — BB84
+  ═══════════════════════════════════════════ -->
+  <div class="panel" id="panel-bb84">
+
+    <div class="sec-title">BB84 QKD Protocol</div>
+    <div class="sec-subtitle">Foundational protocol from Paper 1 literature. Sift bits → measure QBER → extract secure key.</div>
+
+    <div class="info-box">
+      <strong>BB84 Steps:</strong> (1) Alice sends random qubits in Z or X basis.
+      (2) Bob measures in random basis. (3) Basis sifting — keep only matching bases (~50%).
+      (4) Error estimation (QBER). (5) Extract secure key.
+      Eve's interception introduces QBER ≈ 25%, revealing her presence.
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>Qubits Sent</label>
+        <input type="range" id="bb84-bits" min="50" max="300" value="100" step="10" oninput="document.getElementById('bb84-bits-val').textContent=this.value">
+        <span class="range-val" id="bb84-bits-val">100</span>
+      </div>
+      <div class="ctrl-group">
+        <label>Eve Intercept Rate</label>
+        <input type="range" id="bb84-eve" min="0" max="100" value="0" oninput="document.getElementById('bb84-eve-val').textContent=this.value+'%'">
+        <span class="range-val" id="bb84-eve-val">0%</span>
+      </div>
+      <button class="btn-run" id="btn-bb84" onclick="runBB84()">
+        <span class="btn-text">▶ Run Simulation</span>
+        <span class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="grid-4" id="bb84-stats" style="display:none">
+      <div class="card">
+        <div class="card-title">Sifted Key</div>
+        <div class="card-value cyan" id="bb84-sift">—</div>
+        <div class="card-sub">Bits after sifting</div>
+      </div>
+      <div class="card">
+        <div class="card-title">QBER</div>
+        <div class="card-value" id="bb84-qber">—</div>
+        <div class="card-sub">Quantum Bit Error Rate</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Secure Key</div>
+        <div class="card-value green" id="bb84-key">—</div>
+        <div class="card-sub">Final key bits</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Security</div>
+        <div class="card-value" id="bb84-sec">—</div>
+        <div class="card-sub">Threshold QBER &lt; 11%</div>
+      </div>
+    </div>
+
+    <div class="chart-card" id="bb84-chart-card" style="display:none">
+      <h3>Key Generation Waterfall</h3>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="bb84WaterfallChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2" id="bb84-lower" style="display:none">
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Secure Key Preview (first 20 bits)</h3>
+        <div id="key-display-area"></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Bit Trace (first 30 transmissions)</h3>
+        <div style="overflow-x:auto;max-height:230px;overflow-y:auto;">
+          <table class="trace-table" id="bb84-trace">
+            <thead>
+              <tr>
+                <th>#</th><th>Alice Bit</th><th>Alice Basis</th><th>Bob Basis</th>
+                <th>Bob Bit</th><th>Sifted</th><th>Match</th><th>Eve</th>
+              </tr>
+            </thead>
+            <tbody id="bb84-trace-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PANEL 4 — COMPARISON
+  ═══════════════════════════════════════════ -->
+  <div class="panel" id="panel-compare">
+
+    <div class="sec-title">Scenario Comparison</div>
+    <div class="sec-subtitle">Run all simulations across all scenarios simultaneously — validates findings from all 3 papers.</div>
+
+    <div class="info-box">
+      <strong>Comparison mode</strong> runs CHSH across 4 scenarios + Bell auth (clean vs Eve) + BB84
+      (clean vs 50% eavesdrop) in a single backend call. Results validate the attack-detection
+      capabilities described across the three published papers.
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <button class="btn-run" id="btn-compare" onclick="runCompare()">
+        <span class="btn-text">▶ Run Full Comparison</span>
+        <span class="spinner"></span>
+      </button>
+    </div>
+
+    <div class="compare-grid" id="compare-results" style="display:none">
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>CHSH Score by Scenario</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="cmpChshChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Auth Accuracy by Scenario (%)</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="cmpAccChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>Bell Auth — Clean vs Eve</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="cmpBellChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <h3>BB84 — QBER vs Eavesdrop</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="cmpBb84Chart"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <footer>
+    Quantum Authentication Research Dashboard ·
+    Furkan Sayyed &amp; Srivaramangai Ramanujam · Dept. of IT, University of Mumbai<br>
+    Papers: IJESE (Apr 2025) · IJIRT (Jan 2026) · IJCA (Jun 2025)<br>
+    Engine: {{ 'Qiskit AerSimulator' if qiskit else 'NumPy Quantum Simulator (install qiskit-aer for full simulation)' }}
+  </footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════ -->
+<script>
+// ── Global chart registry ──────────────────────
+const charts = {};
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// ── Color palette ─────────────────────────────
+const C = {
+  cyan:   '#00e5ff', cyanDim: 'rgba(0,229,255,0.15)',
+  violet: '#a855f7', violetDim: 'rgba(168,85,247,0.15)',
+  green:  '#10ffb0', greenDim: 'rgba(16,255,176,0.12)',
+  red:    '#ff4d6d', redDim:  'rgba(255,77,109,0.15)',
+  amber:  '#fbbf24', amberDim:'rgba(251,191,36,0.12)',
+  grid:   'rgba(30,45,74,0.6)',
+  text:   '#64748b'
+};
+
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: C.grid }, ticks: { color: C.text, font: { family:'Space Mono', size:10 } } },
+    y: { grid: { color: C.grid }, ticks: { color: C.text, font: { family:'Space Mono', size:10 } } }
+  }
+};
+
+// ── Auth nav ──────────────────────────────────
+function navLogout(){
+  localStorage.removeItem('qeap_token');
+  localStorage.removeItem('qeap_user');
+  location.reload();
+}
+(function initNav(){
+  const tok  = localStorage.getItem('qeap_token');
+  const user = JSON.parse(localStorage.getItem('qeap_user')||'null');
+  if(tok && user){
+    document.getElementById('nav-user-chip').style.display='flex';
+    document.getElementById('nav-uname').textContent='@'+user.username;
+    document.getElementById('nav-dashboard-btn').style.display='inline-block';
+    document.getElementById('nav-logout-btn').style.display='inline-block';
+    document.getElementById('nav-login-btn').style.display='none';
+    document.getElementById('nav-register-btn').style.display='none';
+  }
+})();
+
+// ── Panel switching ───────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const tabs = { overview:0, bell:1, chsh:2, bb84:3, compare:4 };
+  document.querySelectorAll('.ptab')[tabs[name]].classList.add('active');
+}
+
+// ── Loading state helpers ─────────────────────
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  loading ? btn.classList.add('loading') : btn.classList.remove('loading');
+  btn.disabled = loading;
+}
+
+// ── API helper ────────────────────────────────
+async function api(endpoint, body) {
+  const r = await fetch('/api/simulate/' + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+// ══════════════════════════════════════════════
+//  BELL SIMULATION
+// ══════════════════════════════════════════════
+async function runBell() {
+  setLoading('btn-bell', true);
+  const n = parseInt(document.getElementById('bell-trials').value);
+  const eve = document.getElementById('bell-eve').checked;
+
+  try {
+    const res = await api('bell', { n_trials: n, eavesdrop: eve });
+    if (!res.ok) throw new Error(res.error);
+    const d = res.data;
+
+    // Stats
+    document.getElementById('bell-acc').textContent = (d.final_accuracy * 100).toFixed(1) + '%';
+    document.getElementById('bell-fid').textContent = (d.avg_fidelity * 100).toFixed(1) + '%';
+    document.getElementById('bell-mode').textContent = eve ? 'Eve Active' : 'Clean';
+    document.getElementById('bell-time').textContent = d.elapsed_ms + 'ms';
+    document.getElementById('bell-mode').style.color = eve ? 'var(--red)' : 'var(--green)';
+    document.getElementById('bell-stats').style.display = 'grid';
+    document.getElementById('bell-chart-card').style.display = 'block';
+    document.getElementById('bell-charts2').style.display = 'grid';
+
+    const labels = d.accuracies.map((_, i) => i + 1);
+
+    // Accuracy chart
+    destroyChart('bellAcc');
+    charts['bellAcc'] = new Chart(document.getElementById('bellAccChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: d.accuracies.map(v => +(v * 100).toFixed(2)),
+          borderColor: eve ? C.red : C.green,
+          backgroundColor: eve ? C.redDim : C.greenDim,
+          fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2
+        }]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: {
+          ...chartDefaults.plugins,
+          annotation: {}
+        },
+        scales: {
+          ...chartDefaults.scales,
+          y: { ...chartDefaults.scales.y, min: 0, max: 100, title: { display:true, text:'Accuracy (%)', color:C.text, font:{family:'Space Mono',size:10} } }
+        }
+      }
+    });
+
+    // Fidelity chart
+    destroyChart('bellFid');
+    charts['bellFid'] = new Chart(document.getElementById('bellFidChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: d.trials.map(t => +(t.fidelity * 100).toFixed(2)),
+          borderColor: C.cyan,
+          backgroundColor: C.cyanDim,
+          fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+        }]
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min:0, max:100 } } }
+    });
+
+    // Bit outcomes
+    const matches = d.trials.filter(t => t.match).length;
+    const mismatches = d.trials.length - matches;
+    destroyChart('bellBit');
+    charts['bellBit'] = new Chart(document.getElementById('bellBitChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Matching Bits', 'Mismatched'],
+        datasets: [{ data: [matches, mismatches], backgroundColor: [C.green, C.red], borderColor: '#0c1020', borderWidth: 3 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: C.text, font: { family:'Space Mono', size:10 } } } }
+      }
+    });
+
+  } catch(e) {
+    console.error(e);
+  } finally {
+    setLoading('btn-bell', false);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  CHSH SIMULATION
+// ══════════════════════════════════════════════
+async function runCHSH() {
+  setLoading('btn-chsh', true);
+  const n = parseInt(document.getElementById('chsh-rounds').value);
+  const scenario = document.getElementById('chsh-scenario').value;
+
+  try {
+    const res = await api('chsh', { n_rounds: n, scenario });
+    if (!res.ok) throw new Error(res.error);
+    const d = res.data;
+
+    const isSecure = d.avg_chsh_score > 2.0;
+    const scenLabel = scenario.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+
+    document.getElementById('chsh-s').textContent = d.avg_chsh_score.toFixed(3);
+    document.getElementById('chsh-acc').textContent = (d.accuracy * 100).toFixed(1) + '%';
+    document.getElementById('chsh-scen').textContent = scenLabel;
+    document.getElementById('chsh-sec').textContent = isSecure ? '✓ SECURE' : '✗ BREACH';
+    document.getElementById('chsh-sec').className = 'card-value ' + (isSecure ? 'green' : 'red');
+    document.getElementById('chsh-s').style.color = isSecure ? 'var(--green)' : 'var(--red)';
+    document.getElementById('chsh-stats').style.display = 'grid';
+    document.getElementById('chsh-chart-card').style.display = 'block';
+    document.getElementById('chsh-charts2').style.display = 'grid';
+
+    const labels = d.chsh_scores.map((_, i) => i + 1);
+    const col = isSecure ? C.cyan : C.red;
+
+    // Main CHSH chart
+    destroyChart('chshMain');
+    charts['chshMain'] = new Chart(document.getElementById('chshMainChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'CHSH Score',
+            data: d.chsh_scores,
+            borderColor: col, backgroundColor: isSecure ? C.cyanDim : C.redDim,
+            fill: true, tension: 0.3, pointRadius: 1, borderWidth: 2
+          },
+          {
+            label: 'Classical Limit (S=2)',
+            data: Array(n).fill(2.0),
+            borderColor: C.amber, borderDash: [5,5], borderWidth: 1.5,
+            pointRadius: 0, fill: false
+          },
+          {
+            label: 'Quantum Max (S=2.83)',
+            data: Array(n).fill(2.828),
+            borderColor: 'rgba(168,85,247,0.5)', borderDash: [3,3], borderWidth: 1,
+            pointRadius: 0, fill: false
+          }
+        ]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: { legend: { display: true, position:'top', labels:{ color:C.text, font:{family:'Space Mono',size:10} } } }
+      }
+    });
+
+    // Histogram
+    const buckets = {};
+    d.chsh_scores.forEach(s => {
+      const k = Math.round(s * 4) / 4;
+      buckets[k] = (buckets[k] || 0) + 1;
+    });
+    const hKeys = Object.keys(buckets).sort((a,b)=>+a-+b);
+    destroyChart('chshHist');
+    charts['chshHist'] = new Chart(document.getElementById('chshHistChart'), {
+      type: 'bar',
+      data: {
+        labels: hKeys,
+        datasets: [{ data: hKeys.map(k=>buckets[k]), backgroundColor: hKeys.map(k=>+k>2?C.cyanDim:C.redDim), borderColor: hKeys.map(k=>+k>2?C.cyan:C.red), borderWidth: 1 }]
+      },
+      options: { ...chartDefaults }
+    });
+
+    // Cumulative auth rate
+    let cum = 0;
+    const cumRate = d.rounds.map((r,i) => { if(r.authenticated) cum++; return +((cum/(i+1))*100).toFixed(1); });
+    destroyChart('chshAuth');
+    charts['chshAuth'] = new Chart(document.getElementById('chshAuthChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{ data: cumRate, borderColor: C.violet, backgroundColor: C.violetDim, fill:true, tension:0.35, pointRadius:0, borderWidth:2 }]
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y:{...chartDefaults.scales.y, min:0, max:100 } } }
+    });
+
+  } catch(e) {
+    console.error(e);
+  } finally {
+    setLoading('btn-chsh', false);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  BB84 SIMULATION
+// ══════════════════════════════════════════════
+async function runBB84() {
+  setLoading('btn-bb84', true);
+  const n = parseInt(document.getElementById('bb84-bits').value);
+  const eveRate = parseInt(document.getElementById('bb84-eve').value) / 100;
+
+  try {
+    const res = await api('bb84', { n_bits: n, eavesdrop_rate: eveRate });
+    if (!res.ok) throw new Error(res.error);
+    const d = res.data;
+
+    const isSecure = d.qber < 0.11;
+    const qberPct = (d.qber * 100).toFixed(1) + '%';
+
+    document.getElementById('bb84-sift').textContent = d.sifted_key_length;
+    document.getElementById('bb84-qber').textContent = qberPct;
+    document.getElementById('bb84-qber').style.color = isSecure ? 'var(--green)' : 'var(--red)';
+    document.getElementById('bb84-key').textContent = d.secure_key_length + ' bits';
+    document.getElementById('bb84-sec').textContent = isSecure ? '✓ SECURE' : '✗ ABORT';
+    document.getElementById('bb84-sec').className = 'card-value ' + (isSecure ? 'green' : 'red');
+    document.getElementById('bb84-stats').style.display = 'grid';
+    document.getElementById('bb84-chart-card').style.display = 'block';
+    document.getElementById('bb84-lower').style.display = 'grid';
+
+    // Waterfall
+    destroyChart('bb84Waterfall');
+    charts['bb84Waterfall'] = new Chart(document.getElementById('bb84WaterfallChart'), {
+      type: 'bar',
+      data: {
+        labels: d.steps.map(s => s.step),
+        datasets: [{
+          data: d.steps.map(s => s.count),
+          backgroundColor: [C.cyanDim, C.violetDim, C.greenDim, isSecure ? C.greenDim : C.redDim],
+          borderColor:     [C.cyan, C.violet, C.green, isSecure ? C.green : C.red],
+          borderWidth: 2, borderRadius: 6
+        }]
+      },
+      options: {
+        ...chartDefaults,
+        scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, beginAtZero:true } }
+      }
+    });
+
+    // Key display
+    const kd = document.getElementById('key-display-area');
+    kd.innerHTML = '<div class="key-display">' +
+      d.secure_key_bits.map(b => `<div class="key-bit b${b}">${b}</div>`).join('') +
+      '</div>' + (d.secure_key_length > 20 ? `<p style="margin-top:8px;font-family:Space Mono;font-size:.7rem;color:var(--text-dim)">... ${d.secure_key_length - 20} more bits</p>` : '');
+
+    // Trace table
+    const tbody = document.getElementById('bb84-trace-body');
+    tbody.innerHTML = d.trace.map(t => `
+      <tr>
+        <td>${t.bit}</td>
+        <td class="bit-${t.alice_bit}">${t.alice_bit}</td>
+        <td class="basis-${t.alice_basis.toLowerCase()}">${t.alice_basis}</td>
+        <td class="basis-${t.bob_basis.toLowerCase()}">${t.bob_basis}</td>
+        <td class="bit-${t.bob_bit}">${t.bob_bit}</td>
+        <td>${t.sifted ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--text-dim)">—</span>'}</td>
+        <td>${t.match === null ? '—' : (t.match ? '<span class="match-yes">✓</span>' : '<span class="match-no">✗</span>')}</td>
+        <td>${t.eve_intercepted ? '<span class="eve-yes">!</span>' : '—'}</td>
+      </tr>
+    `).join('');
+
+  } catch(e) {
+    console.error(e);
+  } finally {
+    setLoading('btn-bb84', false);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  COMPARISON SIMULATION
+// ══════════════════════════════════════════════
+async function runCompare() {
+  setLoading('btn-compare', true);
+  try {
+    const res = await api('compare', {});
+    if (!res.ok) throw new Error(res.error);
+    const d = res.data;
+    document.getElementById('compare-results').style.display = 'grid';
+
+    const scLabels = d.chsh_comparison.map(c => c.scenario);
+    const cols = [C.green, C.red, C.amber, '#ff4d6d'];
+
+    // CHSH bar
+    destroyChart('cmpChsh');
+    charts['cmpChsh'] = new Chart(document.getElementById('cmpChshChart'), {
+      type: 'bar',
+      data: {
+        labels: scLabels,
+        datasets: [{
+          data: d.chsh_comparison.map(c => c.avg_chsh),
+          backgroundColor: d.chsh_comparison.map(c => c.avg_chsh > 2 ? C.cyanDim : C.redDim),
+          borderColor:     d.chsh_comparison.map(c => c.avg_chsh > 2 ? C.cyan : C.red),
+          borderWidth: 2, borderRadius: 6
+        }]
+      },
+      options: {
+        ...chartDefaults,
+        scales: {
+          ...chartDefaults.scales,
+          y: { ...chartDefaults.scales.y, min: 0, max: 3,
+            ticks: { ...chartDefaults.scales.y.ticks,
+              callback: v => v.toFixed(1)
+            }
+          }
+        }
+      }
+    });
+
+    // Accuracy bar
+    destroyChart('cmpAcc');
+    charts['cmpAcc'] = new Chart(document.getElementById('cmpAccChart'), {
+      type: 'bar',
+      data: {
+        labels: scLabels,
+        datasets: [{
+          data: d.chsh_comparison.map(c => c.accuracy),
+          backgroundColor: d.chsh_comparison.map(c => c.accuracy > 50 ? C.greenDim : C.redDim),
+          borderColor:     d.chsh_comparison.map(c => c.accuracy > 50 ? C.green : C.red),
+          borderWidth: 2, borderRadius: 6
+        }]
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min:0, max:100 } } }
+    });
+
+    // Bell compare
+    destroyChart('cmpBell');
+    charts['cmpBell'] = new Chart(document.getElementById('cmpBellChart'), {
+      type: 'bar',
+      data: {
+        labels: d.bell_comparison.map(b => b.label),
+        datasets: [
+          { label:'Accuracy (%)', data:d.bell_comparison.map(b=>b.accuracy), backgroundColor:[C.greenDim,C.redDim], borderColor:[C.green,C.red], borderWidth:2, borderRadius:6 },
+          { label:'Fidelity (%)', data:d.bell_comparison.map(b=>b.fidelity), backgroundColor:[C.cyanDim,C.amberDim], borderColor:[C.cyan,C.amber], borderWidth:2, borderRadius:6 }
+        ]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: { legend: { display:true, position:'top', labels:{ color:C.text, font:{family:'Space Mono',size:10} } } },
+        scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min:0, max:100 } }
+      }
+    });
+
+    // BB84 compare
+    destroyChart('cmpBb84');
+    charts['cmpBb84'] = new Chart(document.getElementById('cmpBb84Chart'), {
+      type: 'bar',
+      data: {
+        labels: d.bb84_comparison.map(b => b.label),
+        datasets: [
+          { label:'QBER (%)', data:d.bb84_comparison.map(b=>b.qber), backgroundColor:[C.greenDim,C.redDim], borderColor:[C.green,C.red], borderWidth:2, borderRadius:6 },
+          { label:'Key Bits', data:d.bb84_comparison.map(b=>b.key_len), backgroundColor:[C.cyanDim,C.violetDim], borderColor:[C.cyan,C.violet], borderWidth:2, borderRadius:6 }
+        ]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: { legend: { display:true, position:'top', labels:{ color:C.text, font:{family:'Space Mono',size:10} } } }
+      }
+    });
+
+  } catch(e) {
+    console.error(e);
+  } finally {
+    setLoading('btn-compare', false);
+  }
+}
+</script>
+</body>
+</html>
