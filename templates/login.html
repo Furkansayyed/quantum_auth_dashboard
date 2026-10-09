@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login · QEAP-256 Quantum Auth</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060810;--bg2:#0c1020;--bg3:#111827;
+  --border:#1e2d4a;--border2:#2a3f5f;
+  --cyan:#00e5ff;--violet:#7c3aed;--violet2:#a855f7;
+  --green:#10ffb0;--red:#ff4d6d;--amber:#fbbf24;
+  --text:#e2e8f0;--text-dim:#64748b;--text-mid:#94a3b8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+
+/* Orbs */
+.orb{position:fixed;border-radius:50%;pointer-events:none;filter:blur(90px);opacity:.1;z-index:0;}
+.o1{width:500px;height:500px;background:var(--violet);top:-150px;left:-150px;}
+.o2{width:400px;height:400px;background:var(--cyan);bottom:-100px;right:-100px;}
+
+/* Scanlines */
+body::after{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+  pointer-events:none;z-index:1000;}
+
+.card{
+  position:relative;z-index:1;
+  width:100%;max-width:440px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:40px;
+  box-shadow:0 0 60px rgba(0,229,255,.07);
+}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--cyan),var(--violet2));border-radius:20px 20px 0 0;}
+
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.logo-icon{width:38px;height:38px;border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.logo-text{font-size:1.1rem;font-weight:800;letter-spacing:-.01em;}
+.logo-text span{color:var(--cyan);}
+
+h1{font-size:1.6rem;font-weight:800;margin-bottom:4px;}
+.subtitle{color:var(--text-mid);font-size:.82rem;font-family:'Space Mono',monospace;margin-bottom:28px;}
+
+.field{margin-bottom:18px;}
+label{display:block;font-size:.75rem;font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:6px;}
+input{width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:11px 14px;border-radius:10px;
+  font-family:'Syne',sans-serif;font-size:.9rem;outline:none;transition:.2s;}
+input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.1);}
+input.error{border-color:var(--red);}
+.err-msg{font-size:.72rem;font-family:'Space Mono',monospace;color:var(--red);margin-top:4px;}
+
+.btn{width:100%;padding:13px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  color:#000;font-family:'Space Mono',monospace;font-size:.85rem;font-weight:700;
+  letter-spacing:.05em;cursor:pointer;transition:.2s;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:10px;}
+.btn:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,229,255,.25);}
+.btn:active{transform:none;}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+.spinner{width:16px;height:16px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;
+  border-radius:50%;animation:spin .7s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading .spinner{display:block;}
+.loading .btn-text{display:none;}
+
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--text-dim);font-size:.75rem;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.link-row{text-align:center;font-size:.82rem;color:var(--text-mid);}
+.link-row a{color:var(--cyan);text-decoration:none;font-weight:600;}
+.link-row a:hover{text-decoration:underline;}
+
+/* Quantum steps overlay */
+.q-overlay{
+  display:none;
+  margin-top:20px;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+}
+.q-overlay.show{display:block;}
+.q-title{font-family:'Space Mono',monospace;font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--cyan);margin-bottom:12px;}
+.q-step{display:flex;align-items:flex-start;gap:10px;padding:6px 0;
+  border-bottom:1px solid rgba(30,45,74,.5);font-size:.78rem;}
+.q-step:last-child{border-bottom:none;}
+.q-step-num{font-family:'Space Mono',monospace;color:var(--text-dim);min-width:18px;}
+.q-step-name{font-weight:600;min-width:140px;color:var(--text);}
+.q-step-detail{color:var(--text-mid);flex:1;font-family:'Space Mono',monospace;font-size:.68rem;}
+.q-step-icon{margin-left:auto;font-size:.85rem;}
+.ok-icon{color:var(--green);}
+.fail-icon{color:var(--red);}
+.pending-icon{color:var(--text-dim);}
+
+.alert{padding:10px 14px;border-radius:8px;font-family:'Space Mono',monospace;
+  font-size:.78rem;margin-top:12px;}
+.alert.success{background:rgba(16,255,176,.08);border:1px solid rgba(16,255,176,.25);color:var(--green);}
+.alert.error{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.25);color:var(--red);}
+
+.engine-tag{display:inline-flex;align-items:center;gap:6px;
+  font-family:'Space Mono',monospace;font-size:.65rem;color:var(--cyan);
+  background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);
+  border-radius:999px;padding:3px 10px;margin-bottom:20px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);
+  animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body>
+<div class="orb o1"></div>
+<div class="orb o2"></div>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <div class="logo-text"><span>QEAP</span>-256</div>
+  </div>
+
+  <div class="engine-tag"><span class="dot"></span>{{ 'Qiskit Backend' if qiskit else 'NumPy Quantum Sim' }}</div>
+
+  <h1>Sign In</h1>
+  <p class="subtitle">Authenticated via Bell-state entanglement + CHSH verification</p>
+
+  <div class="field">
+    <label>Username or Email</label>
+    <input type="text" id="identifier" placeholder="yourname or you@email.com" autocomplete="username">
+    <div class="err-msg" id="err-identifier"></div>
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    <div class="err-msg" id="err-password"></div>
+  </div>
+
+  <button class="btn" id="login-btn" onclick="doLogin()">
+    <span class="btn-text">◈ Authenticate with QEAP-256</span>
+    <span class="spinner"></span>
+  </button>
+
+  <div class="alert" id="alert" style="display:none"></div>
+
+  <!-- Quantum steps trace -->
+  <div class="q-overlay" id="q-overlay">
+    <div class="q-title">⬡ QEAP-256 Verification Steps</div>
+    <div id="q-steps"></div>
+  </div>
+
+  <div class="divider">or</div>
+  <div class="link-row">
+    Don't have an account? <a href="/register">Create quantum identity →</a>
+  </div>
+  <div class="link-row" style="margin-top:10px;">
+    <a href="/">← Back to dashboard</a>
+  </div>
+</div>
+
+<script>
+const btn    = document.getElementById('login-btn');
+const alert_ = document.getElementById('alert');
+
+function setLoading(v){
+  btn.disabled = v;
+  v ? btn.classList.add('loading') : btn.classList.remove('loading');
+}
+
+function showAlert(msg, type){
+  alert_.className = 'alert ' + type;
+  alert_.textContent = msg;
+  alert_.style.display = 'block';
+}
+
+function clearErrors(){
+  ['identifier','password'].forEach(id => {
+    document.getElementById(id).classList.remove('error');
+    document.getElementById('err-'+id).textContent = '';
+  });
+  alert_.style.display = 'none';
+  document.getElementById('q-overlay').classList.remove('show');
+}
+
+function renderSteps(steps){
+  const icons = {true:'<span class="ok-icon">✓</span>', false:'<span class="fail-icon">✗</span>'};
+  document.getElementById('q-steps').innerHTML = steps.map(s => `
+    <div class="q-step">
+      <span class="q-step-num">${s.step}.</span>
+      <span class="q-step-name">${s.name}</span>
+      <span class="q-step-detail">${s.detail}</span>
+      <span class="q-step-icon">${icons[s.ok]}</span>
+    </div>
+  `).join('');
+  document.getElementById('q-overlay').classList.add('show');
+}
+
+async function doLogin(){
+  clearErrors();
+  const identifier = document.getElementById('identifier').value.trim();
+  const password   = document.getElementById('password').value.trim();
+
+  if(!identifier){ document.getElementById('identifier').classList.add('error'); document.getElementById('err-identifier').textContent='Required'; return; }
+  if(!password)  { document.getElementById('password').classList.add('error');   document.getElementById('err-password').textContent='Required';   return; }
+
+  setLoading(true);
+  try {
+    const res = await fetch('/api/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username: identifier, password})
+    });
+    const data = await res.json();
+
+    if(data.quantum?.steps) renderSteps(data.quantum.steps);
+
+    if(data.ok){
+      localStorage.setItem('qeap_token', data.token);
+      localStorage.setItem('qeap_user',  JSON.stringify(data.user));
+      showAlert(`✓ Welcome, ${data.user.full_name}! Redirecting…`, 'success');
+      setTimeout(() => window.location.href = '/dashboard', 1200);
+    } else {
+      showAlert(data.error || 'Authentication failed', 'error');
+    }
+  } catch(e){
+    showAlert('Network error — is the server running?', 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// Redirect if already logged in
+const tok = localStorage.getItem('qeap_token');
+if(tok) window.location.href = '/dashboard';
+</script>
+</body>
+</html>
